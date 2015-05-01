@@ -28,14 +28,15 @@ start_time_ms = int(time.time() * 1000)
 seq = 1
 data = graph.get('497068793653308/feed', page=True)
 for page in data:
-	page_file_name = "{}/bigdatamy_feed_{}_{}.json".format(SAVE_DIR, start_time_ms, seq)
-	try:
-		with open(page_file_name, "w") as page_save_fd:
-			json.dump(page, page_save_fd, default=decimal_default)
-		nominal_date = page['data'][0]['created_time']
-		print("Saved page {} (containing data from around {}) to {}".format(seq, nominal_date, page_file_name))
-	except Exception:
-		pprint.pprint(page)
-		raise
-	seq += 1
+	if len(page['data']) > 0:
+		page_file_name = "{}/bigdatamy_feed_{}_{}.json".format(SAVE_DIR, start_time_ms, seq)
+		try:
+			with open(page_file_name, "w") as page_save_fd:
+				json.dump(page, page_save_fd, default=decimal_default)
+			nominal_date = page['data'][0]['created_time']
+			print("Saved page {} (containing data from around {}) to {}".format(seq, nominal_date, page_file_name))
+		except Exception:
+			pprint.pprint(page)
+			raise
+		seq += 1
 
