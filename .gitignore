@@ -2,7 +2,7 @@
 oauth_file
 
 # Don't accidentally your raw data, because so big data
-*.json
+BigDataMyData/
 
 # vim
 *.swp
