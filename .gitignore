@@ -1,3 +1,6 @@
+# Don't accidentally your OAUTH file!
+oauth_file
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
