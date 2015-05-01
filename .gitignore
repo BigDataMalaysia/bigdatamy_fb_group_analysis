@@ -4,6 +4,9 @@ oauth_file
 # Don't accidentally your raw data, because so big data
 *.json
 
+# vim
+*.swp
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
