@@ -76,15 +76,15 @@ class Group(object):
         for post in raw_post_data:
             post_obj = Post(post)
             self.add_post(post_obj)
+            if 'likes' in post:
+                post_likes = post['likes']
+                if 'next' in post_likes['paging']:
+                    logging.info("Post %s needs paging for likes", post_obj.url)
             if 'comments' in post:
                 post_comments = post['comments']
                 post_obj
                 if 'next' in post_comments['paging']:
                     logging.info("Post %s needs paging for comments", post_obj.url)
-            if 'likes' in post:
-                post_likes = post['likes']
-                if 'next' in post_likes['paging']:
-                    logging.info("Post %s needs paging for likes", post_obj.url)
 
 
 # the easiest way to obtain an oauth token is to do it by hand
