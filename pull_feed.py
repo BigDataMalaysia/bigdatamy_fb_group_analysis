@@ -25,7 +25,7 @@ class Engagement(object):
 class Comment(object):
     reactions = None
 
-    def __init__(self, raw_info):
+    def __init__(self, raw_info, reaction_type):
         self._raw_info = raw_info
         self.reactions = []
 
@@ -43,6 +43,10 @@ class Post(object):
         self.created_date = dateutil.parser.parse(self._raw_info["created_time"])
         self.comments = []
         self.reactions = []
+
+        raw_reactions_section = self._raw_info['likes']
+        if 'next' in raw_reactions_section['paging']:
+            logging.info("Post %s needs paging for likes", self.url)
 
     def add_comment(self, comment):
         self.comments.append(comment)
