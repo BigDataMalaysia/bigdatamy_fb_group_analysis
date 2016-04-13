@@ -16,38 +16,39 @@ GROUP_ID = "497068793653308"
 
 logging.basicConfig(level=logging.INFO)
 
-class Like(object):
+class Engagement(object):
+
     def __init__(self, raw_info):
         self._raw_info = raw_info
 
 
 class Comment(object):
-    likes = None
+    reactions = None
 
     def __init__(self, raw_info):
         self._raw_info = raw_info
-        self.likes = []
+        self.reactions = []
 
-    def add_like(self, like):
-        self.likes.append(like)
+    def add_reaction(self, reaction):
+        self.reactions.append(reaction)
 
 
 class Post(object):
     comments = None
-    likes = None
+    reactions = None
 
     def __init__(self, raw_info):
         self._raw_info = raw_info
         self.url = [x["link"] for x in self._raw_info["actions"] if x["name"] == "Comment"][0]
         self.created_date = dateutil.parser.parse(self._raw_info["created_time"])
         self.comments = []
-        self.likes = []
+        self.reactions = []
 
     def add_comment(self, comment):
         self.comments.append(comment)
 
-    def add_like(self, like):
-        self.likes.append(like)
+    def add_reaction(self, reaction):
+        self.reactions.append(reaction)
 
 
 class Group(object):
@@ -76,7 +77,7 @@ class Group(object):
         for post in raw_post_data:
             post_obj = Post(post)
             self.add_post(post_obj)
-            if 'likes' in post:
+            if 'likes' in post:  # is it still 'likes' in the API? not yet reactions?
                 post_likes = post['likes']
                 if 'next' in post_likes['paging']:
                     logging.info("Post %s needs paging for likes", post_obj.url)
