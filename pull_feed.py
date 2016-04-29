@@ -21,6 +21,12 @@ class Engagement(object):
     def __init__(self, raw_info):
         self._raw_info = raw_info
 
+class Reaction(Engagement):
+    reaction_types = set()
+
+    @classmethod
+    def add_reaction_type(cls, reaction_type_string):
+        cls.reaction_types.add(str(reaction_type_string).upper())
 
 class Comment(object):
     reactions = None
@@ -39,14 +45,16 @@ class Post(object):
 
     def __init__(self, raw_info):
         self._raw_info = raw_info
-        self.url = [x["link"] for x in self._raw_info["actions"] if x["name"] == "Comment"][0]
-        self.created_date = dateutil.parser.parse(self._raw_info["created_time"])
-        self.comments = []
+        self.fb_id = self._raw_info["id"]
+        self.updated_date = dateutil.parser.parse(self._raw_info["updated_time"])
+        self.content = {}
         self.reactions = []
+        self.comments = []
 
-        raw_reactions_section = self._raw_info['likes']
-        if 'next' in raw_reactions_section['paging']:
-            logging.info("Post %s needs paging for likes", self.url)
+        if 'likes' in self._raw_info:
+            raw_reactions_section = self._raw_info['likes']
+            if 'next' in raw_reactions_section['paging']:
+                logging.info("Post %s needs paging for likes", self.url)
 
     def add_comment(self, comment):
         self.comments.append(comment)
@@ -68,18 +76,26 @@ class Group(object):
 
     def fetch(self, oath_access_token):
         graph = GraphAPI(oauth_access_token)
-        data = graph.get('{}/feed'.format(self.group_id), page=True)
+        data = graph.get('/v2.6/{}/feed'.format(self.group_id), page=True)
         raw_post_data = []
         for page in data:
-            logging.debug("new page")
-            if "data" in page:
-                logging.debug("page has %s posts", len(page['data']))
-                raw_post_data += [p for p in page['data']]
-                logging.info("current accumulated posts count: %d, oldest timestamp: %s",
-                             len(raw_post_data),
-                             raw_post_data[-1]["created_time"])
+            try:
+                logging.debug("new page")
+                if "data" in page:
+                    logging.debug("page has %s posts", len(page['data']))
+                    raw_post_data += [p for p in page['data']]
+                    logging.info("current accumulated posts count: %d, oldest timestamp: %s",
+                                 len(raw_post_data),
+                                 raw_post_data[-1]["updated_time"])
+            except:
+                pprint.pprint(page)
+                raise
         for post in raw_post_data:
-            post_obj = Post(post)
+            try:
+                post_obj = Post(post)
+            except:
+                logging.error("Problem with raw post data: %s", pprint.pformat(post))
+                raise
             self.add_post(post_obj)
             if 'likes' in post:  # is it still 'likes' in the API? not yet reactions?
                 post_likes = post['likes']
