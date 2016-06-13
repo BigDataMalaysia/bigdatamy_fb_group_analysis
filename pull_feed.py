@@ -97,12 +97,6 @@ class Post(object):
         self.updated_date = dateutil.parser.parse(self._raw_info["updated_time"])
         self.reactions = []
         self.comments = []
-
-        if 'likes' in self._raw_info:
-            raw_reactions_section = self._raw_info['likes']
-            if 'next' in raw_reactions_section['paging']:
-                logging.info("Post %s needs paging for likes", self.url)
-
         self.url = "https://www.facebook.com/groups/bigdatamy/permalink/{}/".format(self._raw_info['id'].split('_')[1])
 
     def get_poster(self):
