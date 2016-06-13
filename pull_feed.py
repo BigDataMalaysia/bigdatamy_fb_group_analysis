@@ -1,17 +1,19 @@
 from __future__ import print_function
 
+import argparse
 import dateutil.parser
 import decimal
+import facepy
 import json
 import logging
 import pdb
 import pprint
+import sys
 import time
 import weakref
 
 import matplotlib.pyplot as plt
 
-from facepy import GraphAPI
 
 SAVE_DIR = "BigDataMyData"
 GROUP_ID = "497068793653308"
@@ -20,14 +22,30 @@ logging.basicConfig(level=logging.INFO)
 #logging.basicConfig(level=logging.DEBUG)
 
 def main():
-    # the easiest way to obtain an oauth token is to do it by hand
-    # in https://developers.facebook.com/tools/explorer, then save
-    # the token into the file specified here:
-    oauth_access_token_file = 'oauth_file'
-    with open(oauth_access_token_file, 'r') as oauth_fd:
-        oauth_access_token = oauth_fd.readlines()[0]
+
+    parser = argparse.ArgumentParser(description="BDMY FB group data wrangler")
+    parser.add_argument("--last-n-pages", action="store", type=int, default=None,
+                        help="Only fetch the last N most recent pages worth of data. Not applicable if loading from file.")
+    parser.add_argument("--load-from-file", action="store", type=str, default=None,
+                        help="File to unpickle from; if not specified, download from Facebook servers.")
+    args = parser.parse_args()
+
     bdmy = Group(GROUP_ID)
-    bdmy.fetch(oauth_access_token, 3)
+    if args.load_from_file is not None:
+        raise Exception("TODO")
+    else:
+        oauth_access_token_file = 'oauth_file'
+        with open(oauth_access_token_file, 'r') as oauth_fd:
+            oauth_access_token = oauth_fd.readlines()[0]
+        try:
+            bdmy.fetch(oauth_access_token,
+                       args.last_n_pages)
+        except facepy.exceptions.OAuthError as exc:
+            logging.error(exc)
+            logging.info("Update your token in {}; generate a new token by visiting {}".format(oauth_access_token_file,
+                                                                                               "https://developers.facebook.com/tools/explorer"))
+            sys.exit(1)
+
     plt.plot_date(x=[x.updated_date for x in bdmy.posts],
                   y=[x.get_all_engagements_count() for x in bdmy.posts],
                   fmt="ro-")
@@ -145,7 +163,7 @@ class Group(object):
         """
         For testing purposes one may limit max_pages.
         """
-        graph = GraphAPI(oauth_access_token)
+        graph = facepy.GraphAPI(oauth_access_token)
         data = graph.get('/v2.6/{}/feed'.format(self.group_id), page=True)
         raw_post_data = []
         page_count = 0
