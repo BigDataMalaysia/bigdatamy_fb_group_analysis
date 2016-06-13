@@ -6,6 +6,7 @@ import decimal
 import facepy
 import json
 import logging
+import pickle
 import pdb
 import pprint
 import sys
@@ -32,7 +33,7 @@ def main():
 
     bdmy = Group(GROUP_ID)
     if args.load_from_file is not None:
-        raise Exception("TODO")
+        bdmy.unpickle_posts_from_file(args.load_from_file)
     else:
         oauth_access_token_file = 'oauth_file'
         with open(oauth_access_token_file, 'r') as oauth_fd:
@@ -46,6 +47,7 @@ def main():
                                                                                                "https://developers.facebook.com/tools/explorer"))
             sys.exit(1)
 
+    print("Close plot to enter REPL...")
     plt.plot_date(x=[x.updated_date for x in bdmy.posts],
                   y=[x.get_all_engagements_count() for x in bdmy.posts],
                   fmt="ro-")
@@ -53,6 +55,10 @@ def main():
     plt.ylabel("Number of engagement events")
     plt.grid(True)
     plt.show()
+
+    print("Entering REPL. To interact with current dataset, play with the bdmy object.")
+    if not args.load_from_file:
+        print("Tip: save your data for reuse with the --load-from-file arg, by calling the pickle_posts method on the bdmy object.")
     pdb.set_trace()
 
 
@@ -158,6 +164,14 @@ class Group(object):
 
     def add_post(self, post):
         self.posts.append(post)
+
+    def pickle_posts(self, filename):
+        with open(filename, "wb") as pickle_dst:
+            pickle.dump(self.posts, pickle_dst)
+
+    def unpickle_posts_from_file(self, filename):
+        with open(filename, "rb") as pickle_src:
+            self.posts = pickle.load(pickle_src)
 
     def fetch(self, oauth_access_token, max_pages=None):
         """
