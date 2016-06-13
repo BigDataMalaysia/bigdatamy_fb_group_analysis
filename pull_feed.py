@@ -179,6 +179,7 @@ class Group(object):
                 raise
             self.add_post(post_obj)
 
+            logging.info("Fleshing out post {} of {}; {}".format(len(self.posts), len(raw_post_data), post_obj.url))
             # TODO sort out this horrible boilerplate
 
             # Step 1: extract post reactions
