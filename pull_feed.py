@@ -121,7 +121,7 @@ class Post(object):
         for comment in self.comments:
             count += 1
             count += len(comment.reactions)
-        return count
+        return count + 1  # +1 because the very existence of this post is an engagement
 
     def add_comment(self, comment):
         self.comments.append(comment)
