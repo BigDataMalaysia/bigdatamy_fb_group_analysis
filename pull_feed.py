@@ -7,6 +7,7 @@ import facepy
 import json
 import logging
 import numpy
+import pandas
 import pickle
 import pdb
 import pprint
@@ -22,11 +23,6 @@ GROUP_ID = "497068793653308"
 
 logging.basicConfig(level=logging.INFO)
 #logging.basicConfig(level=logging.DEBUG)
-
-def movingaverage (values, window):
-    weights = numpy.repeat(1.0, window)/window
-    sma = numpy.convolve(values, weights, 'valid')
-    return sma.tolist()
 
 def main():
 
@@ -54,26 +50,24 @@ def main():
             sys.exit(1)
 
     print("Close plot to enter REPL...")
-    #f = pandas.DataFrame({'datetime':pandas.to_datetime([p.updated_date for p in bdmy.posts]),
-    #                      'engagement_cnt':[p.get_all_engagements_count() for p in bdmy.posts]})
-    #f.plot_date(style="ro-")
-
-    x_data=[x.updated_date for x in bdmy.posts]
-    y_data=[x.get_all_engagements_count() for x in bdmy.posts]
-
-    plt.plot_date(x=x_data,
-                  y=y_data,
-                  fmt="bo-")
-    plt.title("Engagements (posts, comments, reactions, likes on comments)")
-    plt.ylabel("Number of engagement events")
-    plt.grid(True)
-
-    y_mave = movingaverage(y_data,10)
-    y_mave = [y_mave[0]] * 9 + y_mave
-    plt.plot_date(x=x_data,
-                  y=y_mave,
-                  fmt="r-", linewidth=2.0)
-
+    index = pandas.to_datetime([p.updated_date for p in bdmy.posts])
+    series = pandas.Series([p.get_all_engagements_count() for p in bdmy.posts],
+                           index=index)
+    resample_series_daily = series.resample('1D',
+                                            how='sum').fillna(0)
+    weekly_rolling_average = pandas.rolling_mean(resample_series_daily,
+                                                 window=7)
+    ax = resample_series_daily.plot(style="bo-",
+                                    title="Engagements (posts, comments, reactions, comment likes)",
+                                    legend=True,
+                                    label='Daily agg')
+    weekly_rolling_average.plot(ax=ax,
+                                style="r-",
+                                linewidth=2.0,
+                                legend=True,
+                                label="Weekly moving ave")
+    ax.set_xlabel("Date")
+    ax.set_ylabel("Number of engagement events")
     plt.show()
 
     print("Entering REPL. To interact with current dataset, play with the bdmy object.")
@@ -197,8 +191,22 @@ class Group(object):
         """
         For testing purposes one may limit max_pages.
         """
+
+        def graph_get_with_oauth_retry(url, page):
+            """a closure to let the user deal with oauth token expiry"""
+            while True:
+                try:
+                    return graph.get(url, page=page)
+                except facepy.exceptions.OAuthError as exc:
+                    logging.error(exc)
+                    logging.info("Update your token in {}; generate a new token by visiting {}".format(oauth_access_token_file,
+                                                                                               "https://developers.facebook.com/tools/explorer"))
+                    logging.info("Waiting for user to enter new oauth access token...")
+                    oauth_access_token = raw_input("Enter new oath access token: ")
+                    graph = facepy.GraphAPI(oauth_access_token)
+
         graph = facepy.GraphAPI(oauth_access_token)
-        data = graph.get('/v2.6/{}/feed'.format(self.group_id), page=True)
+        data = graph_get_with_oauth_retry('/v2.6/{}/feed'.format(self.group_id), page=True)
         raw_post_data = []
         page_count = 0
         for page in data:
@@ -229,7 +237,7 @@ class Group(object):
             # TODO sort out this horrible boilerplate
 
             # Step 1: extract post reactions
-            reactions_pages = list(graph.get('/v2.6/{}/reactions'.format(post_obj.fb_id), page=True))
+            reactions_pages = list(graph_get_with_oauth_retry('/v2.6/{}/reactions'.format(post_obj.fb_id), page=True))
             logging.debug("reactions: %d, %s", len(reactions_pages), pprint.pformat(reactions_pages))
 
             reactions = []
@@ -248,7 +256,7 @@ class Group(object):
                 post_obj.add_reaction(Reaction(reaction_data))
 
             # Step 2: extract post comments
-            comments_pages = list(graph.get('/v2.6/{}/comments'.format(post_obj.fb_id), page=True))
+            comments_pages = list(graph_get_with_oauth_retry('/v2.6/{}/comments'.format(post_obj.fb_id), page=True))
             logging.debug("comments: %d, %s", len(comments_pages), pprint.pformat(comments_pages))
             comments = []
             try:
@@ -267,7 +275,7 @@ class Group(object):
                 post_obj.add_comment(comment_obj)
 
                 # Step 3: extract post comment reactions
-                comment_reactions_pages = list(graph.get('/v2.6/{}/likes'.format(comment_obj.fb_id), page=True))
+                comment_reactions_pages = list(graph_get_with_oauth_retry('/v2.6/{}/likes'.format(comment_obj.fb_id), page=True))
                 logging.debug("comment reactions: %d, %s", len(comment_reactions_pages), pprint.pformat(comment_reactions_pages))
                 comment_reactions = []
                 try:
