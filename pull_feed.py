@@ -6,6 +6,7 @@ import decimal
 import facepy
 import json
 import logging
+import numpy
 import pickle
 import pdb
 import pprint
@@ -21,6 +22,11 @@ GROUP_ID = "497068793653308"
 
 logging.basicConfig(level=logging.INFO)
 #logging.basicConfig(level=logging.DEBUG)
+
+def movingaverage (values, window):
+    weights = numpy.repeat(1.0, window)/window
+    sma = numpy.convolve(values, weights, 'valid')
+    return sma.tolist()
 
 def main():
 
@@ -48,12 +54,26 @@ def main():
             sys.exit(1)
 
     print("Close plot to enter REPL...")
-    plt.plot_date(x=[x.updated_date for x in bdmy.posts],
-                  y=[x.get_all_engagements_count() for x in bdmy.posts],
-                  fmt="ro-")
+    #f = pandas.DataFrame({'datetime':pandas.to_datetime([p.updated_date for p in bdmy.posts]),
+    #                      'engagement_cnt':[p.get_all_engagements_count() for p in bdmy.posts]})
+    #f.plot_date(style="ro-")
+
+    x_data=[x.updated_date for x in bdmy.posts]
+    y_data=[x.get_all_engagements_count() for x in bdmy.posts]
+
+    plt.plot_date(x=x_data,
+                  y=y_data,
+                  fmt="bo-")
     plt.title("Engagements (posts, comments, reactions, likes on comments)")
     plt.ylabel("Number of engagement events")
     plt.grid(True)
+
+    y_mave = movingaverage(y_data,10)
+    y_mave = [y_mave[0]] * 9 + y_mave
+    plt.plot_date(x=x_data,
+                  y=y_mave,
+                  fmt="r-", linewidth=2.0)
+
     plt.show()
 
     print("Entering REPL. To interact with current dataset, play with the bdmy object.")
