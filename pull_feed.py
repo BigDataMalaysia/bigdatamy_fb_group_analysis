@@ -236,71 +236,74 @@ class Group(object):
             except:
                 logging.error("Problem with raw post data: %s", pprint.pformat(post))
                 raise
-            self.add_post(post_obj)
 
-            logging.info("Fleshing out post {} of {}; {}".format(len(self.posts), len(raw_post_data), post_obj.url))
-            # TODO sort out this horrible boilerplate
-
-            # Step 0: get post from
-            post_obj.from_info = self.graph_get_with_oauth_retry('/v2.6/{}?fields=from'.format(post_obj.fb_id), page=True)
-            assert len(post_obj.from_info) == 1, post_obj.from_info
-            post_obj.poster_id = post_obj.from_info[0]['from']['id']
-
-            # Step 1: extract post reactions
-            reactions_pages = list(self.graph_get_with_oauth_retry('/v2.6/{}/reactions'.format(post_obj.fb_id), page=True))
-            logging.debug("reactions: %d, %s", len(reactions_pages), pprint.pformat(reactions_pages))
-
-            reactions = []
             try:
-                if reactions_pages and reactions_pages[-1]:
-                    for reactions_page in reactions_pages:
-                        reactions += reactions_page['data']
-                    if 'paging' in reactions_pages[-1]:
-                        if 'next' in reactions_pages[-1]['paging']:
-                            raise Exception("well that was unexpected")
-            except:
-                logging.error("Tripped up on {}".format(pprint.pformat(reactions_pages)))
-                raise
+                logging.info("Fleshing out post {} of {}; {}".format(len(self.posts), len(raw_post_data), post_obj.url))
+                # TODO sort out this horrible boilerplate
 
-            for reaction_data in reactions:
-                post_obj.add_reaction(Reaction(reaction_data))
+                # Step 0: get post from
+                post_obj.from_info = self.graph_get_with_oauth_retry('/v2.6/{}?fields=from'.format(post_obj.fb_id), page=True)
+                assert len(post_obj.from_info) == 1, post_obj.from_info
+                post_obj.poster_id = post_obj.from_info[0]['from']['id']
 
-            # Step 2: extract post comments
-            comments_pages = list(self.graph_get_with_oauth_retry('/v2.6/{}/comments'.format(post_obj.fb_id), page=True))
-            logging.debug("comments: %d, %s", len(comments_pages), pprint.pformat(comments_pages))
-            comments = []
-            try:
-                if comments_pages and comments_pages[-1]:
-                    for comments_page in comments_pages:
-                        comments += comments_page['data']
-                    if 'paging' in comments_pages[-1]:
-                        if 'next' in comments_pages[-1]['paging']:
-                            raise Exception("well that was unexpected")
-            except:
-                logging.error("Tripped up on {}".format(pprint.pformat(comments_pages)))
-                raise
+                # Step 1: extract post reactions
+                reactions_pages = list(self.graph_get_with_oauth_retry('/v2.6/{}/reactions'.format(post_obj.fb_id), page=True))
+                logging.debug("reactions: %d, %s", len(reactions_pages), pprint.pformat(reactions_pages))
 
-            for comments_data in comments:
-                comment_obj = Comment(comments_data)
-                post_obj.add_comment(comment_obj)
-
-                # Step 3: extract post comment reactions
-                comment_reactions_pages = list(self.graph_get_with_oauth_retry('/v2.6/{}/likes'.format(comment_obj.fb_id), page=True))
-                logging.debug("comment reactions: %d, %s", len(comment_reactions_pages), pprint.pformat(comment_reactions_pages))
-                comment_reactions = []
+                reactions = []
                 try:
-                    if comment_reactions_pages and comment_reactions_pages[-1]:
-                        for comment_reactions_page in comment_reactions_pages:
-                            comment_reactions += comment_reactions_page['data']
-                        if 'paging' in comment_reactions_pages[-1]:
-                            if 'next' in comment_reactions_pages[-1]['paging']:
+                    if reactions_pages and reactions_pages[-1]:
+                        for reactions_page in reactions_pages:
+                            reactions += reactions_page['data']
+                        if 'paging' in reactions_pages[-1]:
+                            if 'next' in reactions_pages[-1]['paging']:
                                 raise Exception("well that was unexpected")
                 except:
-                    logging.error("Tripped up on {}".format(pprint.pformat(comment_reactions_pages)))
+                    logging.error("Tripped up on {}".format(pprint.pformat(reactions_pages)))
                     raise
 
-                for comment_reaction_data in comment_reactions:
-                    comment_obj.add_reaction(Reaction(comment_reaction_data, is_like=True))
+                for reaction_data in reactions:
+                    post_obj.add_reaction(Reaction(reaction_data))
+
+                # Step 2: extract post comments
+                comments_pages = list(self.graph_get_with_oauth_retry('/v2.6/{}/comments'.format(post_obj.fb_id), page=True))
+                logging.debug("comments: %d, %s", len(comments_pages), pprint.pformat(comments_pages))
+                comments = []
+                try:
+                    if comments_pages and comments_pages[-1]:
+                        for comments_page in comments_pages:
+                            comments += comments_page['data']
+                        if 'paging' in comments_pages[-1]:
+                            if 'next' in comments_pages[-1]['paging']:
+                                raise Exception("well that was unexpected")
+                except:
+                    logging.error("Tripped up on {}".format(pprint.pformat(comments_pages)))
+                    raise
+
+                for comments_data in comments:
+                    comment_obj = Comment(comments_data)
+                    post_obj.add_comment(comment_obj)
+
+                    # Step 3: extract post comment reactions
+                    comment_reactions_pages = list(self.graph_get_with_oauth_retry('/v2.6/{}/likes'.format(comment_obj.fb_id), page=True))
+                    logging.debug("comment reactions: %d, %s", len(comment_reactions_pages), pprint.pformat(comment_reactions_pages))
+                    comment_reactions = []
+                    try:
+                        if comment_reactions_pages and comment_reactions_pages[-1]:
+                            for comment_reactions_page in comment_reactions_pages:
+                                comment_reactions += comment_reactions_page['data']
+                            if 'paging' in comment_reactions_pages[-1]:
+                                if 'next' in comment_reactions_pages[-1]['paging']:
+                                    raise Exception("well that was unexpected")
+                    except:
+                        logging.error("Tripped up on {}".format(pprint.pformat(comment_reactions_pages)))
+                        raise
+
+                    for comment_reaction_data in comment_reactions:
+                        comment_obj.add_reaction(Reaction(comment_reaction_data, is_like=True))
+                self.add_post(post_obj)
+            except:
+                logging.warn("Problem fleshing out post data: %s - skipping and continuing", pprint.pformat(post_obj.base_info))
 
 
 if __name__ == "__main__":
