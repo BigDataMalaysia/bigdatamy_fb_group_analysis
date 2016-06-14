@@ -190,13 +190,18 @@ class Group(object):
         while True:
             try:
                 return list(self.graph.get(url, page=page))
-            except facepy.exceptions.OAuthError as exc:
+            except Exception as exc:
                 logging.error(exc)
-                logging.info("Update your token; generate a new token by visiting {}".format("https://developers.facebook.com/tools/explorer"))
-                logging.info("Waiting for user to enter new oauth access token...")
-                self.oauth_access_token = raw_input("Enter new oath access token: ")
-                self.oauth_access_token = self.oauth_access_token.strip()
-                self.graph = facepy.GraphAPI(self.oauth_access_token)
+                logging.info("Simple retry")
+                try:
+                    return list(self.graph.get(url, page=page))
+                except facepy.exceptions.OAuthError as exc:
+                    logging.error(exc)
+                    logging.info("Update your token; generate a new token by visiting {}".format("https://developers.facebook.com/tools/explorer"))
+                    logging.info("Waiting for user to enter new oauth access token...")
+                    self.oauth_access_token = raw_input("Enter new oath access token: ")
+                    self.oauth_access_token = self.oauth_access_token.strip()
+                    self.graph = facepy.GraphAPI(self.oauth_access_token)
 
     def fetch(self, oauth_access_token, max_pages=None):
         """
