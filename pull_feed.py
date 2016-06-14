@@ -40,33 +40,29 @@ def main():
         oauth_access_token_file = 'oauth_file'
         with open(oauth_access_token_file, 'r') as oauth_fd:
             oauth_access_token = oauth_fd.readlines()[0]
-        try:
-            bdmy.fetch(oauth_access_token,
-                       args.last_n_pages)
-        except facepy.exceptions.OAuthError as exc:
-            logging.error(exc)
-            logging.info("Update your token in {}; generate a new token by visiting {}".format(oauth_access_token_file,
-                                                                                               "https://developers.facebook.com/tools/explorer"))
-            sys.exit(1)
+        bdmy.fetch(oauth_access_token,
+                   args.last_n_pages)
 
     print("Close plot to enter REPL...")
     index = pandas.to_datetime([p.updated_date for p in bdmy.posts])
-    series = pandas.Series([p.get_all_engagements_count() for p in bdmy.posts],
+    #series = pandas.Series([p.get_all_engagements_count() for p in bdmy.posts],
+    #                       index=index)
+    series = pandas.Series([len(p.get_all_engager_ids()) for p in bdmy.posts],
                            index=index)
     resample_series_daily = series.resample('1D',
                                             how='sum').fillna(0)
-    weekly_rolling_average = pandas.rolling_mean(resample_series_daily,
-                                                 window=7)
+    rolling_average_30d = pandas.rolling_mean(resample_series_daily,
+                                                 window=30)
     ax = resample_series_daily.plot(style="bo-",
                                     title="Engagements (posts, comments, reactions, comment likes)",
                                     legend=True,
                                     label='Daily agg')
-    weekly_rolling_average.plot(ax=ax,
-                                style="r-",
-                                linewidth=2.0,
-                                legend=True,
-                                label="Weekly moving ave")
-    ax.set_xlabel("Date")
+    rolling_average_30d.plot(ax=ax,
+                             style="r-",
+                             linewidth=3.0,
+                             legend=True,
+                             label="30 day moving ave")
+    ax.set_xlabel("Update date of post")
     ax.set_ylabel("Number of engagement events")
     plt.show()
 
@@ -130,27 +126,27 @@ class Post(object):
     reactions = None
 
     def __init__(self, raw_info):
-        self._raw_info = raw_info
-        self.fb_id = self._raw_info["id"]
-        self.updated_date = dateutil.parser.parse(self._raw_info["updated_time"])
+        self._base_info = raw_info
+        self.fb_id = self._base_info["id"]
+        self.updated_date = dateutil.parser.parse(self._base_info["updated_time"])
         self.reactions = []
         self.comments = []
-        self.url = "https://www.facebook.com/groups/bigdatamy/permalink/{}/".format(self._raw_info['id'].split('_')[1])
+        self.url = "https://www.facebook.com/groups/bigdatamy/permalink/{}/".format(self._base_info['id'].split('_')[1])
 
     def get_poster(self):
-        raise Exception("TODO")
+        return self.poster_id
 
     def get_all_engager_ids(self):
         """
         Returns a deduped set of user IDs for everyone who has engaged with the post - poster, commenters, reactors, and comment reactors.
         """
         commenters = frozenset([c.get_commenter_id() for c in self.comments])
-        comment_reactors = reduce(frozenset().union, [c.get_reactor_ids() for c in self.comments])
-        post_engagers = frozenset([r.get_reactor_id() for r in self.reactions])
+        comment_reactors = reduce(frozenset().union, [c.get_reactor_ids() for c in self.comments], frozenset())
+        post_reactors = frozenset([r.get_reactor_id() for r in self.reactions])
         all_engagers = set()
-        all_engagers.union(commenters)
-        all_engagers.union(comment_reactors)
-        all_engagers.union(post_engagers)
+        all_engagers = all_engagers.union(commenters)
+        all_engagers = all_engagers.union(comment_reactors)
+        all_engagers = all_engagers.union(post_reactors)
         all_engagers.add(self.get_poster())
         return frozenset(all_engagers)
 
@@ -175,6 +171,8 @@ class Group(object):
         logging.info("created Group object for group_id %d", group_id)
         self.group_id = group_id
         self.posts = []
+        self.oauth_access_token = None
+        self.graph = None
 
     def add_post(self, post):
         self.posts.append(post)
@@ -187,28 +185,30 @@ class Group(object):
         with open(filename, "rb") as pickle_src:
             self.posts = pickle.load(pickle_src)
 
+    def graph_get_with_oauth_retry(self, url, page):
+        """a closure to let the user deal with oauth token expiry"""
+        while True:
+            try:
+                return list(self.graph.get(url, page=page))
+            except facepy.exceptions.OAuthError as exc:
+                logging.error(exc)
+                logging.info("Update your token; generate a new token by visiting {}".format("https://developers.facebook.com/tools/explorer"))
+                logging.info("Waiting for user to enter new oauth access token...")
+                self.oauth_access_token = raw_input("Enter new oath access token: ")
+                self.oauth_access_token = self.oauth_access_token.strip()
+                self.graph = facepy.GraphAPI(self.oauth_access_token)
+
     def fetch(self, oauth_access_token, max_pages=None):
         """
         For testing purposes one may limit max_pages.
         """
+        self.oauth_access_token = oauth_access_token
+        self.graph = facepy.GraphAPI(self.oauth_access_token)
 
-        def graph_get_with_oauth_retry(url, page):
-            """a closure to let the user deal with oauth token expiry"""
-            while True:
-                try:
-                    return graph.get(url, page=page)
-                except facepy.exceptions.OAuthError as exc:
-                    logging.error(exc)
-                    logging.info("Update your token in {}; generate a new token by visiting {}".format(oauth_access_token_file,
-                                                                                               "https://developers.facebook.com/tools/explorer"))
-                    logging.info("Waiting for user to enter new oauth access token...")
-                    oauth_access_token = raw_input("Enter new oath access token: ")
-                    graph = facepy.GraphAPI(oauth_access_token)
-
-        graph = facepy.GraphAPI(oauth_access_token)
-        data = graph_get_with_oauth_retry('/v2.6/{}/feed'.format(self.group_id), page=True)
+        data = self.graph_get_with_oauth_retry('/v2.6/{}/feed'.format(self.group_id), page=True)
         raw_post_data = []
         page_count = 0
+        print("foo")
         for page in data:
             if max_pages and page_count >= max_pages:
                 break
@@ -236,8 +236,13 @@ class Group(object):
             logging.info("Fleshing out post {} of {}; {}".format(len(self.posts), len(raw_post_data), post_obj.url))
             # TODO sort out this horrible boilerplate
 
+            # Step 0: get post from
+            post_obj.from_info = self.graph_get_with_oauth_retry('/v2.6/{}?fields=from'.format(post_obj.fb_id), page=True)
+            assert len(post_obj.from_info) == 1, post_obj.from_info
+            post_obj.poster_id = post_obj.from_info[0]['from']['id']
+
             # Step 1: extract post reactions
-            reactions_pages = list(graph_get_with_oauth_retry('/v2.6/{}/reactions'.format(post_obj.fb_id), page=True))
+            reactions_pages = list(self.graph_get_with_oauth_retry('/v2.6/{}/reactions'.format(post_obj.fb_id), page=True))
             logging.debug("reactions: %d, %s", len(reactions_pages), pprint.pformat(reactions_pages))
 
             reactions = []
@@ -256,7 +261,7 @@ class Group(object):
                 post_obj.add_reaction(Reaction(reaction_data))
 
             # Step 2: extract post comments
-            comments_pages = list(graph_get_with_oauth_retry('/v2.6/{}/comments'.format(post_obj.fb_id), page=True))
+            comments_pages = list(self.graph_get_with_oauth_retry('/v2.6/{}/comments'.format(post_obj.fb_id), page=True))
             logging.debug("comments: %d, %s", len(comments_pages), pprint.pformat(comments_pages))
             comments = []
             try:
@@ -275,7 +280,7 @@ class Group(object):
                 post_obj.add_comment(comment_obj)
 
                 # Step 3: extract post comment reactions
-                comment_reactions_pages = list(graph_get_with_oauth_retry('/v2.6/{}/likes'.format(comment_obj.fb_id), page=True))
+                comment_reactions_pages = list(self.graph_get_with_oauth_retry('/v2.6/{}/likes'.format(comment_obj.fb_id), page=True))
                 logging.debug("comment reactions: %d, %s", len(comment_reactions_pages), pprint.pformat(comment_reactions_pages))
                 comment_reactions = []
                 try:
