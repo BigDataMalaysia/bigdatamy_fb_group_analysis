@@ -13,6 +13,7 @@ import pdb
 import pprint
 import sys
 import time
+import traceback
 import weakref
 
 import matplotlib.pyplot as plt
@@ -33,43 +34,47 @@ def main():
                         help="File to unpickle from; if not specified, download from Facebook servers.")
     args = parser.parse_args()
 
-    bdmy = Group(GROUP_ID)
-    if args.load_from_file is not None:
-        bdmy.unpickle_posts_from_file(args.load_from_file)
-    else:
-        oauth_access_token_file = 'oauth_file'
-        with open(oauth_access_token_file, 'r') as oauth_fd:
-            oauth_access_token = oauth_fd.readlines()[0]
-        bdmy.fetch(oauth_access_token,
-                   args.last_n_pages)
+    try:
+        bdmy = Group(GROUP_ID)
+        if args.load_from_file is not None:
+            bdmy.unpickle_posts_from_file(args.load_from_file)
+        else:
+            oauth_access_token_file = 'oauth_file'
+            with open(oauth_access_token_file, 'r') as oauth_fd:
+                oauth_access_token = oauth_fd.readlines()[0]
+            bdmy.fetch(oauth_access_token,
+                       args.last_n_pages)
 
-    print("Close plot to enter REPL...")
-    index = pandas.to_datetime([p.updated_date for p in bdmy.posts])
-    #series = pandas.Series([p.get_all_engagements_count() for p in bdmy.posts],
-    #                       index=index)
-    series = pandas.Series([len(p.get_all_engager_ids()) for p in bdmy.posts],
-                           index=index)
-    resample_series_daily = series.resample('1D',
-                                            how='sum').fillna(0)
-    rolling_average_30d = pandas.rolling_mean(resample_series_daily,
-                                                 window=30)
-    ax = resample_series_daily.plot(style="bo-",
-                                    title="Engagements (posts, comments, reactions, comment likes)",
-                                    legend=True,
-                                    label='Daily agg')
-    rolling_average_30d.plot(ax=ax,
-                             style="r-",
-                             linewidth=3.0,
-                             legend=True,
-                             label="30 day moving ave")
-    ax.set_xlabel("Update date of post")
-    ax.set_ylabel("Number of engagement events")
-    plt.show()
+        print("Close plot to enter REPL...")
+        index = pandas.to_datetime([p.updated_date for p in bdmy.posts])
+        #series = pandas.Series([p.get_all_engagements_count() for p in bdmy.posts],
+        #                       index=index)
+        series = pandas.Series([len(p.get_all_engager_ids()) for p in bdmy.posts],
+                               index=index)
+        resample_series_daily = series.resample('1D',
+                                                how='sum').fillna(0)
+        rolling_average_30d = pandas.rolling_mean(resample_series_daily,
+                                                     window=30)
+        ax = resample_series_daily.plot(style="bo-",
+                                        title="Engagements (posts, comments, reactions, comment likes)",
+                                        legend=True,
+                                        label='Daily agg')
+        rolling_average_30d.plot(ax=ax,
+                                 style="r-",
+                                 linewidth=3.0,
+                                 legend=True,
+                                 label="30 day moving ave")
+        ax.set_xlabel("Update date of post")
+        ax.set_ylabel("Number of engagement events")
+        plt.show()
 
-    print("Entering REPL. To interact with current dataset, play with the bdmy object.")
-    if not args.load_from_file:
-        print("Tip: save your data for reuse with the --load-from-file arg, by calling the pickle_posts method on the bdmy object.")
-    pdb.set_trace()
+    except:
+        traceback.print_exc()
+    finally:
+        print("Entering REPL. To interact with current dataset, play with the bdmy object.")
+        if not args.load_from_file:
+            print("Tip: save your data for reuse with the --load-from-file arg, by calling the pickle_posts method on the bdmy object.")
+        pdb.set_trace()
 
 
 class Engagement(object):
@@ -185,23 +190,36 @@ class Group(object):
         with open(filename, "rb") as pickle_src:
             self.posts = pickle.load(pickle_src)
 
-    def graph_get_with_oauth_retry(self, url, page):
+    def graph_get_with_oauth_retry(self, url, page, max_retry_cycles=3):
         """a closure to let the user deal with oauth token expiry"""
+        assert max_retry_cycles > 0
+        retry_cycle = 0
         while True:
+            if retry_cycle >= max_retry_cycles:
+                logging.error("Giving up on query {} after {} tries; last exception was {}/{}".format(url,
+                                                                                                      retry_cycle,
+                                                                                                      type(last_exc),
+                                                                                                      last_exc))
+                return list()
+            retry_cycle += 1
             try:
                 return list(self.graph.get(url, page=page))
             except Exception as exc:
+                last_exc = exc
                 logging.error(exc)
-                logging.info("Simple retry")
-                try:
-                    return list(self.graph.get(url, page=page))
-                except facepy.exceptions.OAuthError as exc:
-                    logging.error(exc)
-                    logging.info("Update your token; generate a new token by visiting {}".format("https://developers.facebook.com/tools/explorer"))
-                    logging.info("Waiting for user to enter new oauth access token...")
-                    self.oauth_access_token = raw_input("Enter new oath access token: ")
-                    self.oauth_access_token = self.oauth_access_token.strip()
-                    self.graph = facepy.GraphAPI(self.oauth_access_token)
+                if "unknown error" not in exc.message:
+                    # might be able to recover with a retry or a new token
+                    logging.info("Failed with {}/{}: doing simple retry".format(type(exc), exc))
+                    try:
+                        time.sleep(3)
+                        return list(self.graph.get(url, page=page))
+                    except facepy.exceptions.OAuthError as exc:
+                        logging.error("Retry {} failed; {}/{}".format(retry_cycle, type(exc), exc))
+                        logging.info("Update your token; generate a new token by visiting {}".format("https://developers.facebook.com/tools/explorer"))
+                        logging.info("Waiting for user to enter new oauth access token...")
+                        self.oauth_access_token = raw_input("Enter new oath access token: ")
+                        self.oauth_access_token = self.oauth_access_token.strip()
+                        self.graph = facepy.GraphAPI(self.oauth_access_token)
 
     def fetch(self, oauth_access_token, max_pages=None):
         """
@@ -237,16 +255,20 @@ class Group(object):
                 logging.error("Problem with raw post data: %s", pprint.pformat(post))
                 raise
 
+            self.add_post(post_obj)
+
             try:
                 logging.info("Fleshing out post {} of {}; {}".format(len(self.posts), len(raw_post_data), post_obj.url))
                 # TODO sort out this horrible boilerplate
 
                 # Step 0: get post from
+                logging.info("Fleshing out post {} of {}; {} -- getting from info".format(len(self.posts), len(raw_post_data), post_obj.url))
                 post_obj.from_info = self.graph_get_with_oauth_retry('/v2.6/{}?fields=from'.format(post_obj.fb_id), page=True)
                 assert len(post_obj.from_info) == 1, post_obj.from_info
                 post_obj.poster_id = post_obj.from_info[0]['from']['id']
 
                 # Step 1: extract post reactions
+                logging.info("Fleshing out post {} of {}; {} -- getting reactions".format(len(self.posts), len(raw_post_data), post_obj.url))
                 reactions_pages = list(self.graph_get_with_oauth_retry('/v2.6/{}/reactions'.format(post_obj.fb_id), page=True))
                 logging.debug("reactions: %d, %s", len(reactions_pages), pprint.pformat(reactions_pages))
 
@@ -266,6 +288,7 @@ class Group(object):
                     post_obj.add_reaction(Reaction(reaction_data))
 
                 # Step 2: extract post comments
+                logging.info("fleshing out post {} of {}; {} -- getting comments".format(len(self.posts), len(raw_post_data), post_obj.url))
                 comments_pages = list(self.graph_get_with_oauth_retry('/v2.6/{}/comments'.format(post_obj.fb_id), page=True))
                 logging.debug("comments: %d, %s", len(comments_pages), pprint.pformat(comments_pages))
                 comments = []
@@ -285,6 +308,7 @@ class Group(object):
                     post_obj.add_comment(comment_obj)
 
                     # Step 3: extract post comment reactions
+                    logging.info("fleshing out post {} of {}; {} -- getting comment reactions".format(len(self.posts), len(raw_post_data), post_obj.url))
                     comment_reactions_pages = list(self.graph_get_with_oauth_retry('/v2.6/{}/likes'.format(comment_obj.fb_id), page=True))
                     logging.debug("comment reactions: %d, %s", len(comment_reactions_pages), pprint.pformat(comment_reactions_pages))
                     comment_reactions = []
@@ -301,7 +325,6 @@ class Group(object):
 
                     for comment_reaction_data in comment_reactions:
                         comment_obj.add_reaction(Reaction(comment_reaction_data, is_like=True))
-                self.add_post(post_obj)
             except:
                 logging.warn("Problem fleshing out post data: %s - skipping and continuing", pprint.pformat(post_obj.base_info))
 
