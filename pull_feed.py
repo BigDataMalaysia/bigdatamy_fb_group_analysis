@@ -301,7 +301,7 @@ class Group(object):
                     post_obj.add_reaction(Reaction(reaction_data))
 
                 # Step 2: extract post comments, along with their likes
-                logging.info("fleshing out post {} of {}; {} -- getting comments".format(len(self.posts), len(raw_post_data), post_obj.url))
+                logging.info("Fleshing out post {} of {}; {} -- getting comments".format(len(self.posts), len(raw_post_data), post_obj.url))
                 comments_pages = list(self.graph_get_with_oauth_retry('/v2.6/{}/comments?fields=from,created_time,message,id,likes'.format(post_obj.fb_id), page=True))
                 logging.debug("comments: %d, %s", len(comments_pages), pprint.pformat(comments_pages))
                 comments = []
