@@ -47,23 +47,36 @@ def main():
 
         print("Close plot to enter REPL...")
         index = pandas.to_datetime([p.updated_date for p in bdmy.posts])
-        #series = pandas.Series([p.get_all_engagements_count() for p in bdmy.posts],
-        #                       index=index)
-        series = pandas.Series([len(p.get_all_engager_ids()) for p in bdmy.posts],
-                               index=index)
-        resample_series_daily = series.resample('1D',
-                                                how='sum').fillna(0)
-        rolling_average_30d = pandas.rolling_mean(resample_series_daily,
-                                                     window=30)
-        ax = resample_series_daily.plot(style="bo-",
-                                        title="Engagements (posts, comments, reactions, comment likes)",
-                                        legend=True,
-                                        label='Daily agg')
-        rolling_average_30d.plot(ax=ax,
-                                 style="r-",
-                                 linewidth=3.0,
-                                 legend=True,
-                                 label="30 day moving ave")
+        series_engagement_cnt = pandas.Series([p.get_all_engagements_count() for p in bdmy.posts],
+                                              index=index)
+        series_unique_engagers_cnt = pandas.Series([len(set(p.get_all_engager_ids())) for p in bdmy.posts],
+                                                   index=index)
+        resample_engagement_cnt_daily = series_engagement_cnt.resample('1D',
+                                                                       how='sum').fillna(0)
+        resample_unique_engagers_cnt_daily = series_unique_engagers_cnt.resample('1D',
+                                                                                 how='sum').fillna(0)
+        rolling_average_30d_engagement_cnt = pandas.rolling_mean(resample_engagement_cnt_daily,
+                                                                 window=30)
+        rolling_average_30d_unique_engagers_cnt_daily = pandas.rolling_mean(resample_unique_engagers_cnt_daily,
+                                                                            window=30)
+        ax = resample_engagement_cnt_daily.plot(style="bo-",
+                                                title="Engagements (posts, comments, reactions, comment likes)",
+                                                legend=True,
+                                                label='Engagements daily agg')
+        rolling_average_30d_engagement_cnt.plot(ax=ax,
+                                                style="r-",
+                                                linewidth=3.0,
+                                                legend=True,
+                                                label="Engagements 30 day moving ave")
+        resample_unique_engagers_cnt_daily.plot(ax=ax,
+                                                style="mo-",
+                                                legend=True,
+                                                label="Unique engagers daily agg")
+        rolling_average_30d_unique_engagers_cnt_daily.plot(ax=ax,
+                                                           style="g-",
+                                                           linewidth=3.0,
+                                                           legend=True,
+                                                           label="Unique engagers 30 day moving ave")
         ax.set_xlabel("Update date of post")
         ax.set_ylabel("Number of engagement events")
         plt.show()
@@ -287,9 +300,9 @@ class Group(object):
                 for reaction_data in reactions:
                     post_obj.add_reaction(Reaction(reaction_data))
 
-                # Step 2: extract post comments
+                # Step 2: extract post comments, along with their likes
                 logging.info("fleshing out post {} of {}; {} -- getting comments".format(len(self.posts), len(raw_post_data), post_obj.url))
-                comments_pages = list(self.graph_get_with_oauth_retry('/v2.6/{}/comments'.format(post_obj.fb_id), page=True))
+                comments_pages = list(self.graph_get_with_oauth_retry('/v2.6/{}/comments?fields=from,created_time,message,id,likes'.format(post_obj.fb_id), page=True))
                 logging.debug("comments: %d, %s", len(comments_pages), pprint.pformat(comments_pages))
                 comments = []
                 try:
@@ -308,25 +321,13 @@ class Group(object):
                     post_obj.add_comment(comment_obj)
 
                     # Step 3: extract post comment reactions
-                    logging.info("fleshing out post {} of {}; {} -- getting comment reactions".format(len(self.posts), len(raw_post_data), post_obj.url))
-                    comment_reactions_pages = list(self.graph_get_with_oauth_retry('/v2.6/{}/likes'.format(comment_obj.fb_id), page=True))
-                    logging.debug("comment reactions: %d, %s", len(comment_reactions_pages), pprint.pformat(comment_reactions_pages))
-                    comment_reactions = []
-                    try:
-                        if comment_reactions_pages and comment_reactions_pages[-1]:
-                            for comment_reactions_page in comment_reactions_pages:
-                                comment_reactions += comment_reactions_page['data']
-                            if 'paging' in comment_reactions_pages[-1]:
-                                if 'next' in comment_reactions_pages[-1]['paging']:
-                                    raise Exception("well that was unexpected")
-                    except:
-                        logging.error("Tripped up on {}".format(pprint.pformat(comment_reactions_pages)))
-                        raise
+                    if 'likes' in comments_data:
+                        for like_info in comments_data["likes"]["data"]:
+                            comment_obj.add_reaction(Reaction(like_info, is_like=True))
 
-                    for comment_reaction_data in comment_reactions:
-                        comment_obj.add_reaction(Reaction(comment_reaction_data, is_like=True))
             except:
-                logging.warn("Problem fleshing out post data: %s - skipping and continuing", pprint.pformat(post_obj.base_info))
+                logging.warn("Problem fleshing out post data: %s - skipping and continuing", pprint.pformat(post_obj._base_info))
+                traceback.print_exc()
 
 
 if __name__ == "__main__":
