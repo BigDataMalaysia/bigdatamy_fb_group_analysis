@@ -172,7 +172,7 @@ class Post(object):
         self.updated_date = dateutil.parser.parse(self._base_info["updated_time"])
         self.reactions = []
         self.comments = []
-        self.url = "https://www.facebook.com/groups/bigdatamy/permalink/{}/".format(self._base_info['id'].split('_')[1])
+        self.url_post_resource = "/permalink/{}/".format(self._base_info['id'].split('_')[1])
 
     def get_poster(self):
         return self.poster_id
@@ -217,6 +217,12 @@ class Group(object):
 
     def add_post(self, post):
         self.posts.append(post)
+
+    def make_url(self, post_obj=None):
+        url = "https://www.facebook.com/groups/{}".format(self.group_id)
+        if post_obj:
+            url += post_obj.url_post_resource
+        return url
 
     def pickle_posts(self, filename):
         with open(filename, "wb") as pickle_dst:
@@ -294,17 +300,17 @@ class Group(object):
             self.add_post(post_obj)
 
             try:
-                logging.info("Fleshing out post {} of {}; {}".format(len(self.posts), len(raw_post_data), post_obj.url))
+                logging.info("Fleshing out post {} of {}; {}".format(len(self.posts), len(raw_post_data), self.make_url(post_obj)))
                 # TODO sort out this horrible boilerplate
 
                 # Step 0: get post from
-                logging.info("Fleshing out post {} of {}; {} -- getting from info".format(len(self.posts), len(raw_post_data), post_obj.url))
+                logging.info("Fleshing out post {} of {}; {} -- getting from info".format(len(self.posts), len(raw_post_data), self.make_url(post_obj)))
                 post_obj.from_info = self.graph_get_with_oauth_retry('/v2.6/{}?fields=from'.format(post_obj.fb_id), page=True)
                 assert len(post_obj.from_info) == 1, post_obj.from_info
                 post_obj.poster_id = post_obj.from_info[0]['from']['id']
 
                 # Step 1: extract post reactions
-                logging.info("Fleshing out post {} of {}; {} -- getting reactions".format(len(self.posts), len(raw_post_data), post_obj.url))
+                logging.info("Fleshing out post {} of {}; {} -- getting reactions".format(len(self.posts), len(raw_post_data), self.make_url(post_obj)))
                 reactions_pages = list(self.graph_get_with_oauth_retry('/v2.6/{}/reactions'.format(post_obj.fb_id), page=True))
                 logging.debug("reactions: %d, %s", len(reactions_pages), pprint.pformat(reactions_pages))
 
@@ -324,7 +330,7 @@ class Group(object):
                     post_obj.add_reaction(Reaction(reaction_data))
 
                 # Step 2: extract post comments, along with their likes
-                logging.info("Fleshing out post {} of {}; {} -- getting comments".format(len(self.posts), len(raw_post_data), post_obj.url))
+                logging.info("Fleshing out post {} of {}; {} -- getting comments".format(len(self.posts), len(raw_post_data), self.make_url(post_obj)))
                 comments_pages = list(self.graph_get_with_oauth_retry('/v2.6/{}/comments?fields=from,created_time,message,id,likes'.format(post_obj.fb_id), page=True))
                 logging.debug("comments: %d, %s", len(comments_pages), pprint.pformat(comments_pages))
                 comments = []
