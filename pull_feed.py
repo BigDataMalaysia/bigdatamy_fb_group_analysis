@@ -28,7 +28,7 @@ def main():
     parser.add_argument("--last-n-pages", action="store", type=int, default=None,
                         help="Only fetch the last N most recent pages worth of data. Not applicable if loading from file.")
     parser.add_argument("--group-id", action="store", type=str, default="497068793653308",
-                        help="Group ID (default is the group id of https://www.facebook.com/groups/bigdatamy/.")
+                        help="Group ID (default is the group id of https://www.facebook.com/groups/bigdatamy/.)")
     parser.add_argument("--load-from-file", action="store", type=str, default=None,
                         help="File to unpickle from; if not specified, download from Facebook servers.")
     args = parser.parse_args()
