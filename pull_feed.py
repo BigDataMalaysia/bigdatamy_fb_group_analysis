@@ -348,7 +348,7 @@ class Group(object):
                         for like_info in comments_data["likes"]["data"]:
                             comment_obj.add_reaction(Reaction(like_info, is_like=True))
 
-            except:
+            except Exception:
                 logging.warn("Problem fleshing out post data: %s - skipping and continuing", pprint.pformat(post_obj._base_info))
                 traceback.print_exc()
 
