@@ -209,7 +209,7 @@ class Group(object):
     posts = None
 
     def __init__(self, group_id):
-        logging.info("created Group object for group_id %d", group_id)
+        logging.info("created Group object for group_id %s", str(group_id))
         self.group_id = group_id
         self.posts = []
         self.oauth_access_token = None
