@@ -19,9 +19,6 @@ import weakref
 import matplotlib.pyplot as plt
 
 
-SAVE_DIR = "BigDataMyData"
-GROUP_ID = "497068793653308"
-
 logging.basicConfig(level=logging.INFO)
 #logging.basicConfig(level=logging.DEBUG)
 
@@ -30,12 +27,14 @@ def main():
     parser = argparse.ArgumentParser(description="BDMY FB group data wrangler")
     parser.add_argument("--last-n-pages", action="store", type=int, default=None,
                         help="Only fetch the last N most recent pages worth of data. Not applicable if loading from file.")
+    parser.add_argument("--group-id", action="store", type=str, default="497068793653308",
+                        help="Group ID (default is the group id of https://www.facebook.com/groups/bigdatamy/.")
     parser.add_argument("--load-from-file", action="store", type=str, default=None,
                         help="File to unpickle from; if not specified, download from Facebook servers.")
     args = parser.parse_args()
 
     try:
-        bdmy = Group(GROUP_ID)
+        bdmy = Group(args.group_id)
         if args.load_from_file is not None:
             bdmy.unpickle_posts_from_file(args.load_from_file)
         else:
