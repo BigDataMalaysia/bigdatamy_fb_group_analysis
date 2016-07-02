@@ -1,6 +1,7 @@
 from __future__ import print_function
 
 import argparse
+import datetime
 import dateutil.parser
 import decimal
 import facepy
@@ -60,7 +61,7 @@ def main():
             bdmy.fetch(oauth_access_token,
                        args.last_n_pages)
 
-        bdmy.generate_standard_data_sets()
+        bdmy.generate_standard_data_sets(extra=True)
         print("Close plot to enter REPL...")
         resample_engagement_cnt_daily = bdmy.series_engagement_cnt.resample('1D',
                                                                             how='sum').fillna(0)
@@ -260,12 +261,32 @@ class Group(object):
         with open(filename, "rb") as pickle_src:
             self.posts = pickle.load(pickle_src)
 
-    def generate_standard_data_sets(self):
+    def generate_standard_data_sets(self, extra=False):
         self.time_index = pandas.to_datetime([p.updated_date for p in self.posts])
         self.series_engagement_cnt = pandas.Series([p.get_all_engagements_count() for p in self.posts],
                                                    index=self.time_index)
         self.series_unique_engagers_cnt = pandas.Series([len(set(p.get_all_engager_ids())) for p in self.posts],
                                                          index=self.time_index)
+
+        if extra:
+            # TODO this feels horrible, there must be some way to use pandas to extract these cumulative stats. At a minimum,
+            # chop up the posts array as we go along so the list comprehension does not rescan from scratch on every iter :T
+            self.cumulative_engagement = {}
+            for date in self.time_index:
+                unique_engagers = set()
+                engagers_before_this_date = [p.get_all_engager_ids() for p in self.posts if date.to_datetime() > p.updated_date]
+                for engagers in engagers_before_this_date:
+                    for engager in engagers:
+                        unique_engagers.add(engager)
+                self.cumulative_engagement[date] = len(unique_engagers)
+
+        self.engagers_engagement_cnt = {}
+        for post in self.posts:
+            for engager in post.get_all_engager_ids():
+                if engager in self.engagers_engagement_cnt:
+                    self.engagers_engagement_cnt[engager] += 1
+                else:
+                    self.engagers_engagement_cnt[engager] = 1
 
     def graph_get_with_oauth_retry(self, url, page, max_retry_cycles=3):
         """a closure to let the user deal with oauth token expiry"""
