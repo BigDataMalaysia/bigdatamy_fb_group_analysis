@@ -35,22 +35,18 @@ def main():
 
     wckl = Group("179139768764782")
     wckl.unpickle_posts_from_file("wckl-2016-06-24.dat")
-    wckl_index = pandas.to_datetime([p.updated_date for p in wckl.posts])
-    wckl_series_engagement_cnt = pandas.Series([p.get_all_engagements_count() for p in wckl.posts],
-                                               index=wckl_index)
-    wckl_series_unique_engagers_cnt = pandas.Series([len(set(p.get_all_engager_ids())) for p in wckl.posts],
-                                                    index=wckl_index)
-    wckl_resample_engagement_cnt_daily = wckl_series_engagement_cnt.resample('1D',
+    wckl.generate_standard_data_sets()
+    wckl_resample_engagement_cnt_daily = wckl.series_engagement_cnt.resample('1D',
                                                                              how='sum').fillna(0)
-    wckl_resample_unique_engagers_cnt_daily = wckl_series_unique_engagers_cnt.resample('1D',
+    wckl_resample_unique_engagers_cnt_daily = wckl.series_unique_engagers_cnt.resample('1D',
                                                                                        how='sum').fillna(0)
     wckl_rolling_average_30d_engagement_cnt = pandas.rolling_mean(wckl_resample_engagement_cnt_daily,
                                                                   window=30)
     wckl_rolling_average_30d_unique_engagers_cnt_daily = pandas.rolling_mean(wckl_resample_unique_engagers_cnt_daily,
                                                                             window=30)
-    wckl_resample_engagement_ave_daily = wckl_series_engagement_cnt.resample('1D', how='mean').fillna(0)
+    wckl_resample_engagement_ave_daily = wckl.series_engagement_cnt.resample('1D', how='mean').fillna(0)
     wckl_rolling_average_30d_engagement_ave_daily = pandas.rolling_mean(wckl_resample_engagement_ave_daily, window=30)
-    wckl_resample_engagement_uq_daily = wckl_series_engagement_cnt.resample('1D', how=lambda x: x.mean() + x.std()).fillna(0)
+    wckl_resample_engagement_uq_daily = wckl.series_engagement_cnt.resample('1D', how=lambda x: x.mean() + x.std()).fillna(0)
     wckl_rolling_average_30d_engagement_uq_daily = pandas.rolling_mean(wckl_resample_engagement_uq_daily, window=30)
 
     try:
@@ -64,16 +60,12 @@ def main():
             bdmy.fetch(oauth_access_token,
                        args.last_n_pages)
 
+        bdmy.generate_standard_data_sets()
         print("Close plot to enter REPL...")
-        index = pandas.to_datetime([p.updated_date for p in bdmy.posts])
-        series_engagement_cnt = pandas.Series([p.get_all_engagements_count() for p in bdmy.posts],
-                                              index=index)
-        series_unique_engagers_cnt = pandas.Series([len(set(p.get_all_engager_ids())) for p in bdmy.posts],
-                                                   index=index)
-        resample_engagement_cnt_daily = series_engagement_cnt.resample('1D',
-                                                                       how='sum').fillna(0)
-        resample_unique_engagers_cnt_daily = series_unique_engagers_cnt.resample('1D',
-                                                                                 how='sum').fillna(0)
+        resample_engagement_cnt_daily = bdmy.series_engagement_cnt.resample('1D',
+                                                                            how='sum').fillna(0)
+        resample_unique_engagers_cnt_daily = bdmy.series_unique_engagers_cnt.resample('1D',
+                                                                                      how='sum').fillna(0)
         rolling_average_30d_engagement_cnt = pandas.rolling_mean(resample_engagement_cnt_daily,
                                                                  window=30)
         rolling_average_30d_unique_engagers_cnt_daily = pandas.rolling_mean(resample_unique_engagers_cnt_daily,
@@ -107,7 +99,7 @@ def main():
                                                            legend=True,
                                                            label="WCKL: Unique engagers 30 day moving ave")
 
-        resample_engagement_ave_daily = series_engagement_cnt.resample('1D', how='mean').fillna(0)
+        resample_engagement_ave_daily = bdmy.series_engagement_cnt.resample('1D', how='mean').fillna(0)
         rolling_average_30d_engagement_ave_daily = pandas.rolling_mean(resample_engagement_ave_daily, window=30)
         rolling_average_30d_engagement_ave_daily.plot(ax=ax,
                                                       style="c-",
@@ -116,7 +108,7 @@ def main():
                                                       label="BDMY: Engagements per-post 30 day moving ave")
 
 
-        resample_engagement_uq_daily = series_engagement_cnt.resample('1D', how=lambda x: x.mean() + x.std()).fillna(0)
+        resample_engagement_uq_daily = bdmy.series_engagement_cnt.resample('1D', how=lambda x: x.mean() + x.std()).fillna(0)
         rolling_average_30d_engagement_uq_daily = pandas.rolling_mean(resample_engagement_uq_daily, window=30)
         #rolling_average_30d_engagement_uq_daily.plot(ax=ax,
         #                                              style="b-",
@@ -267,6 +259,13 @@ class Group(object):
     def unpickle_posts_from_file(self, filename):
         with open(filename, "rb") as pickle_src:
             self.posts = pickle.load(pickle_src)
+
+    def generate_standard_data_sets(self):
+        self.time_index = pandas.to_datetime([p.updated_date for p in self.posts])
+        self.series_engagement_cnt = pandas.Series([p.get_all_engagements_count() for p in self.posts],
+                                                   index=self.time_index)
+        self.series_unique_engagers_cnt = pandas.Series([len(set(p.get_all_engager_ids())) for p in self.posts],
+                                                         index=self.time_index)
 
     def graph_get_with_oauth_retry(self, url, page, max_retry_cycles=3):
         """a closure to let the user deal with oauth token expiry"""
