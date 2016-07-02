@@ -116,8 +116,8 @@ def main():
                                                       label="BDMY: Engagements per-post 30 day moving ave")
 
 
-        #resample_engagement_uq_daily = series_engagement_cnt.resample('1D', how=lambda x: x.mean() + x.std()).fillna(0)
-        #rolling_average_30d_engagement_uq_daily = pandas.rolling_mean(resample_engagement_uq_daily, window=30)
+        resample_engagement_uq_daily = series_engagement_cnt.resample('1D', how=lambda x: x.mean() + x.std()).fillna(0)
+        rolling_average_30d_engagement_uq_daily = pandas.rolling_mean(resample_engagement_uq_daily, window=30)
         #rolling_average_30d_engagement_uq_daily.plot(ax=ax,
         #                                              style="b-",
         #                                              linewidth=3.0,
@@ -135,7 +135,6 @@ def main():
         ax.set_ylabel("Number of engagement events")
         plt.show()
 
-        print(rolling_average_30d_engagement_cnt)
         popular_posts = []
         for post in bdmy.posts:
             if post.get_all_engagements_count() > rolling_average_30d_engagement_uq_daily[post.updated_date.replace(hour=0, minute=0, second=0)]:
