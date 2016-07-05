@@ -61,7 +61,7 @@ def main():
             bdmy.fetch(oauth_access_token,
                        args.last_n_pages)
 
-        bdmy.generate_standard_data_sets(extra=True)
+        bdmy.generate_standard_data_sets()
         print("Close plot to enter REPL...")
         resample_engagement_cnt_daily = bdmy.series_engagement_cnt.resample('1D',
                                                                             how='sum').fillna(0)
@@ -261,52 +261,41 @@ class Group(object):
         with open(filename, "rb") as pickle_src:
             self.posts = pickle.load(pickle_src)
 
-    def generate_standard_data_sets(self, extra=False):
+    def generate_standard_data_sets(self):
         self.time_index = pandas.to_datetime([p.updated_date for p in self.posts])
         self.series_engagement_cnt = pandas.Series([p.get_all_engagements_count() for p in self.posts],
                                                    index=self.time_index)
         self.series_unique_engagers_cnt = pandas.Series([len(set(p.get_all_engager_ids())) for p in self.posts],
                                                          index=self.time_index)
 
-        if extra:
-            logging.info("Making time range pairs sequence")
-            time_range_pairs = [(self.time_index[x], self.time_index[x+1]) for x in range(len(self.time_index))[:-1]]
-            unique_engagers_cum_cnt = []
-            seen_engagers = set()
+        logging.info("Making time range pairs sequence")
+        time_range_pairs = list(reversed([(self.time_index[x], self.time_index[x+1]) for x in range(len(self.time_index))[:-1]]))
+        time_range_pairs.insert(0, (time_range_pairs[0][1], (time_range_pairs[0][1]- datetime.timedelta(days=1))))
+        assert len(time_range_pairs) == len(self.time_index)
+        unique_engagers_cum_cnt = []
+        seen_engagers = set()
 
-            start_time, end_time = time_range_pairs.pop(0)
-            for post in self.posts:
-                for engager_id in post.get_all_engager_ids():
-                    seen_engagers.add(engager_id)
-                if post.updated_date == end_time:
-                    unique_engagers_cum_cnt = len(seen_engagers)
-                    start_time, end_time = time_range_pairs.pop(0)
-                assert post.updated_date >= start_time
-
-            #posts_tmp = list(self.posts)
-            #for time_index_index in range(len(bdmy.time_index))[:-1]:
-            #    end_time = bdmy.time_index[time_index_index]
-            #    start_time = bdmy.time_index[time_index_index+1]
-            #    posts_in_range = []
-            #    for post_index in len(self.posts)
-            #        current_post = self.posts[post_index]
-            #        # note the logic here is fragile, in particular ordering sensitive
-
-            #        assert current_post.updated_date >= start_time
-            #        assert post.updated_date < end_time
-            #        if post.updated_date == end_time:
-            #            for post in
-
-            ## TODO this feels horrible, there must be some way to use pandas to extract these cumulative stats. At a minimum,
-            ## chop up the posts array as we go along so the list comprehension does not rescan from scratch on every iter :T
-            #self.cumulative_engagement = {}
-            #for date in self.time_index:
-            #    unique_engagers = set()
-            #    engagers_before_this_date = [p.get_all_engager_ids() for p in self.posts if date.to_datetime() > p.updated_date]
-            #    for engagers in engagers_before_this_date:
-            #        for engager in engagers:
-            #            unique_engagers.add(engager)
-            #    self.cumulative_engagement[date] = len(unique_engagers)
+        end_time, start_time = time_range_pairs.pop(0)
+        logging.info("Making cumulative engagers count over posts")
+        logging.debug("Updating time range; initial range is {} -> {}".format(start_time, end_time))
+        expect_more_posts = True
+        for post in list(reversed(self.posts)):
+            assert expect_more_posts
+            logging.debug("post updated_date={}".format(post.updated_date))
+            assert post.updated_date > start_time
+            for engager_id in post.get_all_engager_ids():  # this MUST come before the end_time check
+                seen_engagers.add(engager_id)
+            if post.updated_date == end_time:
+                unique_engagers_cum_cnt.append(len(seen_engagers))
+                if time_range_pairs:
+                    logging.debug("Updating time range; current range is {} -> {}".format(start_time, end_time))
+                    end_time, start_time = time_range_pairs.pop(0)
+                    logging.debug("Updated time range; new range is {} -> {}".format(start_time, end_time))
+                    assert end_time > start_time
+                else:
+                    expect_more_posts = False
+        assert len(unique_engagers_cum_cnt) == len(self.time_index)
+        self.series_unique_engagers_cum_cnt = pandas.Series(list(reversed(unique_engagers_cum_cnt)), self.time_index)
 
         self.engagers_engagement_cnt = {}
         for post in self.posts:
