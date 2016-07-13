@@ -291,7 +291,7 @@ class Group(object):
         for post in list(reversed(self.posts)):
             assert expect_more_posts
             logging.debug("post updated_date={}".format(post.updated_date))
-            assert post.updated_date > start_time
+            assert post.updated_date >= start_time
             for engager_id in post.get_all_engager_ids():  # this MUST come before the end_time check
                 seen_engagers.add(engager_id)
             if post.updated_date == end_time:
@@ -300,7 +300,7 @@ class Group(object):
                     logging.debug("Updating time range; current range is {} -> {}".format(start_time, end_time))
                     end_time, start_time = time_range_pairs.pop(0)
                     logging.debug("Updated time range; new range is {} -> {}".format(start_time, end_time))
-                    assert end_time > start_time
+                    assert end_time >= start_time
                 else:
                     expect_more_posts = False
         assert len(unique_engagers_cum_cnt) == len(self.time_index)
