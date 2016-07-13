@@ -40,6 +40,8 @@ def main():
                                                                              how='sum').fillna(0)
     wckl_resample_unique_engagers_cnt_daily = wckl.series_unique_engagers_cnt.resample('1D',
                                                                                        how='sum').fillna(0)
+    wckl_resample_unique_engagers_cum_cnt_daily = wckl.series_unique_engagers_cum_cnt.resample('1D',
+                                                                                               how='max').fillna(method='pad')
     wckl_rolling_average_30d_engagement_cnt = pandas.rolling_mean(wckl_resample_engagement_cnt_daily,
                                                                   window=30)
     wckl_rolling_average_30d_unique_engagers_cnt_daily = pandas.rolling_mean(wckl_resample_unique_engagers_cnt_daily,
@@ -66,6 +68,8 @@ def main():
                                                                             how='sum').fillna(0)
         resample_unique_engagers_cnt_daily = bdmy.series_unique_engagers_cnt.resample('1D',
                                                                                       how='sum').fillna(0)
+        resample_unique_engagers_cum_cnt_daily = bdmy.series_unique_engagers_cum_cnt.resample('1D',
+                                                                                              how='max').fillna(method='pad')
         rolling_average_30d_engagement_cnt = pandas.rolling_mean(resample_engagement_cnt_daily,
                                                                  window=30)
         rolling_average_30d_unique_engagers_cnt_daily = pandas.rolling_mean(resample_unique_engagers_cnt_daily,
@@ -76,36 +80,36 @@ def main():
         #                                        label='Engagements daily agg')
         ax = rolling_average_30d_engagement_cnt.plot(#ax=ax,
                                                 style="r-",
-                                                linewidth=3.0,
+                                                #linewidth=3.0,
                                                 legend=True,
                                                 label="BDMY: Engagements 30 day moving ave")
         wckl_rolling_average_30d_engagement_cnt.plot(ax=ax,
                                                 style="b-",
-                                                linewidth=3.0,
+                                                #linewidth=3.0,
                                                 legend=True,
                                                 label="WCKL: Engagements 30 day moving ave")
         #resample_unique_engagers_cnt_daily.plot(ax=ax,
         #                                        style="go-",
         #                                        legend=True,
         #                                        label="Unique engagers daily agg")
-        rolling_average_30d_unique_engagers_cnt_daily.plot(ax=ax,
-                                                           style="y-",
-                                                           #linewidth=3.0,
-                                                           legend=True,
-                                                           label="BDMY: Unique engagers 30 day moving ave")
-        wckl_rolling_average_30d_unique_engagers_cnt_daily.plot(ax=ax,
-                                                           style="g-",
-                                                           #linewidth=3.0,
-                                                           legend=True,
-                                                           label="WCKL: Unique engagers 30 day moving ave")
+        #rolling_average_30d_unique_engagers_cnt_daily.plot(ax=ax,
+        #                                                   style="y-",
+        #                                                   #linewidth=3.0,
+        #                                                   legend=True,
+        #                                                   label="BDMY: Unique engagers 30 day moving ave")
+        #wckl_rolling_average_30d_unique_engagers_cnt_daily.plot(ax=ax,
+        #                                                   style="g-",
+        #                                                   #linewidth=3.0,
+        #                                                   legend=True,
+        #                                                   label="WCKL: Unique engagers 30 day moving ave")
 
         resample_engagement_ave_daily = bdmy.series_engagement_cnt.resample('1D', how='mean').fillna(0)
         rolling_average_30d_engagement_ave_daily = pandas.rolling_mean(resample_engagement_ave_daily, window=30)
-        rolling_average_30d_engagement_ave_daily.plot(ax=ax,
-                                                      style="c-",
-                                                      #linewidth=3.0,
-                                                      legend=True,
-                                                      label="BDMY: Engagements per-post 30 day moving ave")
+        #rolling_average_30d_engagement_ave_daily.plot(ax=ax,
+        #                                              style="c-",
+        #                                              #linewidth=3.0,
+        #                                              legend=True,
+        #                                              label="BDMY: Engagements per-post 30 day moving ave")
 
 
         resample_engagement_uq_daily = bdmy.series_engagement_cnt.resample('1D', how=lambda x: x.mean() + x.std()).fillna(0)
@@ -116,15 +120,30 @@ def main():
         #                                              legend=True,
         #                                              label="BDMY: Engagements per-post 30 day moving mean+1std")
 
-        wckl_rolling_average_30d_engagement_ave_daily.plot(ax=ax,
-                                                      style="m-",
-                                                      #linewidth=3.0,
-                                                      legend=True,
-                                                      label="WCKL: Engagements per-post 30 day moving ave")
+        #wckl_rolling_average_30d_engagement_ave_daily.plot(ax=ax,
+        #                                              style="m-",
+        #                                              #linewidth=3.0,
+        #                                              legend=True,
+        #                                              label="WCKL: Engagements per-post 30 day moving ave")
+
+        resample_unique_engagers_cum_cnt_daily.plot(ax=ax,
+                                                    style="c-",
+                                                    linewidth=3.0,
+                                                    legend=True,
+                                                    label="BDMY: Cumulative unique engagers",
+                                                    secondary_y=True)
+
+        wckl_resample_unique_engagers_cum_cnt_daily.plot(ax=ax,
+                                                         style="m-",
+                                                         linewidth=3.0,
+                                                         legend=True,
+                                                         label="WCKL: Cumulative unique engagers",
+                                                         secondary_y=True)
 
 
         ax.set_xlabel("Update date of post")
-        ax.set_ylabel("Number of engagement events")
+        #ax.set_ylabel("Number of engagement events")
+        ax.set_ylabel("cnt")
         plt.show()
 
         popular_posts = []
