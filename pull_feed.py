@@ -268,6 +268,15 @@ class Group(object):
         self.series_unique_engagers_cnt = pandas.Series([len(set(p.get_all_engager_ids())) for p in self.posts],
                                                          index=self.time_index)
 
+        logging.info("Validating time index")
+        last_time = None
+        for next_time in reversed(self.time_index):
+            if last_time:
+                assert not last_time > next_time, "Integrity issue with time index: last_time = {}, next_time = {}".format(last_time, next_time)
+                if last_time == next_time:
+                    logging.warning("Weirdness in time index: last_time = {}, next_time = {}".format(last_time, next_time))
+            last_time = next_time
+
         logging.info("Making time range pairs sequence")
         time_range_pairs = list(reversed([(self.time_index[x], self.time_index[x+1]) for x in range(len(self.time_index))[:-1]]))
         time_range_pairs.insert(0, (time_range_pairs[0][1], (time_range_pairs[0][1]- datetime.timedelta(days=1))))
