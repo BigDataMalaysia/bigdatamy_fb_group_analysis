@@ -1,1 +1,5 @@
 facepy==1.0.6
+numpy==1.11.2
+python-dateutil==2.5.3
+pytz==2016.7
+matplotlib==1.5.3
