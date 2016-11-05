@@ -210,7 +210,7 @@ class Group(object):
     posts = None
 
     def __init__(self, group_id):
-        logging.info("created Group object for group_id %d", group_id)
+        logging.info("created Group object for group_id %s", str(group_id))
         self.group_id = group_id
         self.posts = []
         self.oauth_access_token = None
@@ -229,6 +229,7 @@ class Group(object):
 
     def graph_get_with_oauth_retry(self, url, page, max_retry_cycles=3):
         """a closure to let the user deal with oauth token expiry"""
+        logging.info("request: {}".format(url))
         assert max_retry_cycles > 0
         retry_cycle = 0
         while True:
@@ -257,6 +258,29 @@ class Group(object):
                         self.oauth_access_token = raw_input("Enter new oath access token: ")
                         self.oauth_access_token = self.oauth_access_token.strip()
                         self.graph = facepy.GraphAPI(self.oauth_access_token)
+
+    @classmethod
+    def merge_pages(cls, pages):
+        merged_data = []
+        for page in pages:
+            try:
+                if "data" in page:
+                    merged_data += [p for p in page['data']]
+            except:
+                pprint.pprint(page)
+                raise
+        return merged_data
+
+    def fetch_membership(self, oauth_access_token):
+        self.oauth_access_token = oauth_access_token
+        self.graph = facepy.GraphAPI(self.oauth_access_token)
+        members = []
+        page_count = 0
+        request = "/v2.8/{}/members".format(self.group_id)
+        paged_data = self.graph_get_with_oauth_retry(request, page=True)
+
+        data = self.merge_pages(paged_data)
+        return data
 
     def fetch(self, oauth_access_token, max_pages=None):
         """
